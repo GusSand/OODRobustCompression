@@ -97,7 +97,10 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
     # Save nets
     nets = {'netE':model.encoder, 'netQ':model.quantizer, 'netG':model.decoder,  'latent_dim': latent_dim}
     # save_name = f'../trained_no_robust2/ae_c_d{latent_dim}L{L}.pt'
-    save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}gamma{gamma:.2f}.pt'
+    if gamma is None:
+        save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}.pt'
+    else:
+        save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}gamma{gamma:.2f}.pt'
     torch.save(nets, save_name)
     
 if __name__ == '__main__':
