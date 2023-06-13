@@ -16,6 +16,7 @@ from pytorchtools import GaussianNoise
 from adversarialbox.attacks import L2PGDAttack_AE, LinfPGDAttack_AE, WassDROAttack_AE
 from adversarialbox.train import adv_train, FGSM_train_rnd
 from adversarialbox.utils import to_var, pred_batch, test
+import os
 # from vgg_ae import Encoder, Decoder
 
 from layers_compress import Quantizer, Generator, Encoder, AutoencoderQ
@@ -25,6 +26,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def train(latent_dim, L, gamma, train_loader, test_loader):
+    "" "Train an autoencoder with latent dimension d and L quantization levels" ""
+
     # Setup
     img_size = (32, 32, 1)
     netG = Generator(img_size=img_size, latent_dim=latent_dim, dim=64).to(device)
@@ -34,10 +37,10 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
     model = AutoencoderQ(netE, netG, netQ)
     
     # initialize the early_stopping object
-    early_stopping = EarlyStopping(patience=12, verbose=True)
+    early_stopping = EarlyStopping(patience=4, verbose=True)
     
     # Number of training epochs
-    num_epochs = 50
+    num_epochs = 20#50
 
     # Setup Adam optimizers for both G and D
 #     betas = (0.5, 0.9)
@@ -97,6 +100,9 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
     # Save nets
     nets = {'netE':model.encoder, 'netQ':model.quantizer, 'netG':model.decoder,  'latent_dim': latent_dim}
     # save_name = f'../trained_no_robust2/ae_c_d{latent_dim}L{L}.pt'
+
+    save_directory = "../trained_robust_wass_ball"
+    os.makedirs(save_directory, exist_ok=True)
     if gamma is None:
         save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}.pt'
     else:
