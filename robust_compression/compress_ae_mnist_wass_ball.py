@@ -12,17 +12,20 @@ from torch.utils.data import Dataset, DataLoader
 from torch.autograd import grad as torch_grad
 import pkbar
 import sys
+import os
+    
 from pytorchtools import GaussianNoise
 from adversarialbox.attacks import L2PGDAttack_AE, LinfPGDAttack_AE, WassDROAttack_AE
 from adversarialbox.train import adv_train, FGSM_train_rnd
 from adversarialbox.utils import to_var, pred_batch, test
+from entropy_models import EntropyModel
 # from vgg_ae import Encoder, Decoder
 
 from layers_compress import Quantizer, Generator, Encoder, AutoencoderQ
 from pytorchtools import EarlyStopping, GaussianNoise
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def train(latent_dim, L, gamma, train_loader, test_loader):
     # Setup
@@ -30,8 +33,10 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
     netG = Generator(img_size=img_size, latent_dim=latent_dim, dim=64).to(device)
     netE = Encoder(img_size, latent_dim, dim=64).to(device)
     netQ = Quantizer(np.linspace(-1., 1., L))
+    entropy_coder = EntropyModel(compressed_size=latent_dim).to(device)
+
     
-    model = AutoencoderQ(netE, netG, netQ)
+    model = AutoencoderQ(netE, netG, netQ, entropy_coder)
     
     # initialize the early_stopping object
     early_stopping = EarlyStopping(patience=12, verbose=True)
@@ -101,12 +106,24 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
         
 
     # Save nets
-    nets = {'netE':model.encoder, 'netQ':model.quantizer, 'netG':model.decoder,  'latent_dim': latent_dim}
+    # Save nets
+    nets = {'netE':model.encoder, 'netQ':model.quantizer, 'netG':model.decoder, 
+            'netEntropy':model.entropy_model, 'latent_dim': latent_dim}
+
     # save_name = f'../trained_no_robust2/ae_c_d{latent_dim}L{L}.pt'
-    save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}gamma{gamma:.2f}.pt'
+    save_name = f'trained_robust_wass_ball/ae_c_d{latent_dim}L{L}gamma{gamma:.2f}.pt'
+
+    print(f"Saving to {save_name}")
     torch.save(nets, save_name)
     
 if __name__ == '__main__':
+
+    # set up GPU
+    #torch.cuda.set_device(2)
+    # os.environ["CUDA_VISIBLE_DEVICES"]="2"
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
+    
     # Load data
     transform = torchvision.transforms.Compose([
         torchvision.transforms.Resize(32),
@@ -124,7 +141,7 @@ if __name__ == '__main__':
     gamma = 0.36
     # gamma=1
     L =12
-    latent_dims = [10, 9]
+    latent_dims = [10]#[10, 9]
 #     latent_dims = [4, 5, 6, 7, 8, 9, 10]
     for latent_dim in latent_dims:
         print("Training d={}".format(str(latent_dim)))

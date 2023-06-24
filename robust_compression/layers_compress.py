@@ -78,18 +78,21 @@ class StructuredCompressor(nn.Module):
     
 
 class AutoencoderQ(nn.Module):
-    def __init__(self, encoder, decoder, quantizer):
+    def __init__(self, encoder, decoder, quantizer, entropy_model):
         super(AutoencoderQ, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.quantizer = quantizer
+        self.entropy_model = entropy_model
     
     def forward(self, x):
         x = self.encoder(x)
         x = self.quantizer(x)
+        x = self.entropy_model(x)
         x = self.decoder(x)
         return x
 
+### This class is the decoder for the structured autoencoder
 class Generator(nn.Module):
     def __init__(self, img_size, latent_dim, dim):
         super(Generator, self).__init__()

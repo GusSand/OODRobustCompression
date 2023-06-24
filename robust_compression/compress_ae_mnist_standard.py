@@ -17,6 +17,7 @@ from adversarialbox.attacks import L2PGDAttack_AE, LinfPGDAttack_AE, WassDROAtta
 from adversarialbox.train import adv_train, FGSM_train_rnd
 from adversarialbox.utils import to_var, pred_batch, test
 import os
+from entropy_models import EntropyModel, NullEntropyModel
 # from vgg_ae import Encoder, Decoder
 
 from layers_compress import Quantizer, Generator, Encoder, AutoencoderQ
@@ -33,14 +34,16 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
     netG = Generator(img_size=img_size, latent_dim=latent_dim, dim=64).to(device)
     netE = Encoder(img_size, latent_dim, dim=64).to(device)
     netQ = Quantizer(np.linspace(-1., 1., L))
+    #entropy_coder = EntropyModel(compressed_size=latent_dim).to(device)
+    entropy_coder = NullEntropyModel().to(device)
     
-    model = AutoencoderQ(netE, netG, netQ)
+    model = AutoencoderQ(netE, netG, netQ, entropy_coder)
     
     # initialize the early_stopping object
     early_stopping = EarlyStopping(patience=4, verbose=True)
     
     # Number of training epochs
-    num_epochs = 20#50
+    num_epochs = 2 #50
 
     # Setup Adam optimizers for both G and D
 #     betas = (0.5, 0.9)
@@ -51,7 +54,7 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
 #     schedulerE = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerE, T_max=200)
     
     # define adversary
-#     adversary = LinfPGDAttack_AE(k=10, loss_fn=nn.MSELoss())
+#     adversary = LinfPGDAttack_AE(k=10, loss_fn=nn.MSELoss()) 
     adversary = WassDROAttack_AE(k=15, a = 1., gamma=gamma)
 #     adversary = L2PGDAttack_AE(k=15, epsilon=4.15, a = 1., loss_fn=nn.MSELoss())
     
@@ -98,15 +101,16 @@ def train(latent_dim, L, gamma, train_loader, test_loader):
         
 
     # Save nets
-    nets = {'netE':model.encoder, 'netQ':model.quantizer, 'netG':model.decoder,  'latent_dim': latent_dim}
-    # save_name = f'../trained_no_robust2/ae_c_d{latent_dim}L{L}.pt'
-
-    save_directory = "../trained_robust_wass_ball"
+    nets = {'netE':model.encoder, 'netQ':model.quantizer, 'netG':model.decoder, 
+            'netEntropy':model.entropy_model, 'latent_dim': latent_dim}
+    
+    save_directory = "trained_standard"
     os.makedirs(save_directory, exist_ok=True)
-    if gamma is None:
-        save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}.pt'
-    else:
-        save_name = f'../trained_robust_wass_ball/ae_c_d{latent_dim}L{L}gamma{gamma:.2f}.pt'
+
+    gamma_str = f'gamma{gamma:.2f}' if gamma is not None else ''
+    save_name = f'{save_directory}/ae_c_d{latent_dim}L{L}{gamma_str}.pt'
+
+    print(f"Saving to {save_name}")
     torch.save(nets, save_name)
     
 if __name__ == '__main__':
@@ -124,7 +128,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                          shuffle=False)
     
-    d_L_pairs = [(4, 6)]
+    d_L_pairs = [(10, 6)]
     for pair in d_L_pairs:
         d, L = pair
         print(f"Training d={d}, L={L}")
